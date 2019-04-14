@@ -47,6 +47,7 @@ import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -830,7 +831,7 @@ public class ServiceConfig<T> extends AbstractServiceConfig {
                         .orElseGet(() -> {
                             ProtocolConfig protocolConfig = new ProtocolConfig();
                             protocolConfig.refresh();
-                            return Arrays.asList(protocolConfig);
+                            return Collections.singletonList(protocolConfig);
                         })
                );
             }

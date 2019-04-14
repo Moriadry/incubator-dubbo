@@ -25,7 +25,7 @@ import org.apache.dubbo.remoting.Transporter;
 import org.apache.dubbo.remoting.exchange.Exchanger;
 import org.apache.dubbo.remoting.telnet.TelnetHandler;
 
-import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * The service provider default configuration
@@ -157,7 +157,7 @@ public class ProviderConfig extends AbstractServiceConfig {
 
     @Deprecated
     public void setProtocol(String protocol) {
-        this.protocols = Arrays.asList(new ProtocolConfig[]{new ProtocolConfig(protocol)});
+        this.protocols = Collections.singletonList(new ProtocolConfig(protocol));
     }
 
     @Parameter(excluded = true)
