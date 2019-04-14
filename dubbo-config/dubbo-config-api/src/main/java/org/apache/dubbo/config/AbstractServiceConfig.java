@@ -22,7 +22,8 @@ import org.apache.dubbo.common.utils.CollectionUtils;
 import org.apache.dubbo.config.support.Parameter;
 import org.apache.dubbo.rpc.ExporterListener;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -210,7 +211,7 @@ public abstract class AbstractServiceConfig extends AbstractInterfaceConfig {
     }
 
     public void setProtocol(ProtocolConfig protocol) {
-        setProtocols(Collections.singletonList(protocol));
+        setProtocols(new ArrayList<ProtocolConfig>(Arrays.asList(protocol)));
     }
 
     @Parameter(excluded = true)

@@ -28,8 +28,8 @@ import org.apache.dubbo.config.ServiceConfig;
 import org.apache.dubbo.config.api.DemoService;
 import org.apache.dubbo.config.provider.impl.DemoServiceImpl;
 
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -155,8 +155,8 @@ public class UrlTestBase {
         provConf.setRegistry(regConfForProvider);
         servConf.setRegistry(regConfForService);
 
-        provConf.setProtocols(Collections.singletonList(protoConfForProvider));
-        servConf.setProtocols(Collections.singletonList(protoConfForService));
+        provConf.setProtocols(new ArrayList<ProtocolConfig>(Arrays.asList(new ProtocolConfig[]{ protoConfForProvider})));
+        servConf.setProtocols(new ArrayList<ProtocolConfig>(Arrays.asList(new ProtocolConfig[]{ protoConfForService})));
 
         servConf.setMethods(Arrays.asList(new MethodConfig[]{methodConfForService}));
         servConf.setProvider(provConf);
