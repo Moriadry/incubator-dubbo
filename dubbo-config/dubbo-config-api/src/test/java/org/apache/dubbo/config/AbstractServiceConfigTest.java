@@ -21,9 +21,10 @@ import org.apache.dubbo.common.Constants;
 
 import org.junit.jupiter.api.Test;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -110,7 +111,7 @@ public class AbstractServiceConfigTest {
         assertThat(serviceConfig.getProtocol(), nullValue());
         serviceConfig.setProtocol(new ProtocolConfig());
         assertThat(serviceConfig.getProtocol(), notNullValue());
-        serviceConfig.setProtocols(Collections.singletonList(new ProtocolConfig()));
+        serviceConfig.setProtocols(new ArrayList<>(Arrays.asList(new ProtocolConfig())));
         assertThat(serviceConfig.getProtocols(), hasSize(1));
     }
 

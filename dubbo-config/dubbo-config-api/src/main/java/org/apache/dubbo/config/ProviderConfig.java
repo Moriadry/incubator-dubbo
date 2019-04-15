@@ -158,7 +158,7 @@ public class ProviderConfig extends AbstractServiceConfig {
 
     @Deprecated
     public void setProtocol(String protocol) {
-        this.protocols = new ArrayList<ProtocolConfig>(Arrays.asList(new ProtocolConfig[]{ new ProtocolConfig(protocol)}));
+        this.protocols = new ArrayList<>(Arrays.asList(new ProtocolConfig[]{ new ProtocolConfig(protocol)}));
     }
 
     @Parameter(excluded = true)

@@ -211,7 +211,7 @@ public abstract class AbstractServiceConfig extends AbstractInterfaceConfig {
     }
 
     public void setProtocol(ProtocolConfig protocol) {
-        setProtocols(new ArrayList<ProtocolConfig>(Arrays.asList(protocol)));
+        setProtocols(new ArrayList<>(Arrays.asList(protocol)));
     }
 
     @Parameter(excluded = true)

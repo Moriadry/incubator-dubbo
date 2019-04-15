@@ -22,6 +22,8 @@ import org.apache.dubbo.config.ProtocolConfig;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 
 class AbstractServiceBuilderTest {
@@ -129,7 +131,7 @@ class AbstractServiceBuilderTest {
         ProtocolConfig protocol = new ProtocolConfig();
         ServiceBuilder builder = new ServiceBuilder();
         Assertions.assertNull(builder.build().getProtocols());
-        builder.addProtocols(Collections.singletonList(protocol));
+        builder.addProtocols(new ArrayList<>(Arrays.asList(protocol)));
         Assertions.assertNotNull(builder.build().getProtocols());
         Assertions.assertEquals(1, builder.build().getProtocols().size());
     }
