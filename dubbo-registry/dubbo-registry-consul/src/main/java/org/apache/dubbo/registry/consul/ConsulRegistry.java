@@ -21,6 +21,7 @@ import org.apache.dubbo.common.Constants;
 import org.apache.dubbo.common.URL;
 import org.apache.dubbo.common.logger.Logger;
 import org.apache.dubbo.common.logger.LoggerFactory;
+import org.apache.dubbo.common.utils.ConcurrentHashSet;
 import org.apache.dubbo.common.utils.NamedThreadFactory;
 import org.apache.dubbo.registry.NotifyListener;
 import org.apache.dubbo.registry.support.FailbackRegistry;
@@ -34,15 +35,8 @@ import com.ecwid.consul.v1.health.HealthServicesRequest;
 import com.ecwid.consul.v1.health.model.HealthService;
 import org.apache.dubbo.rpc.RpcException;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 import static java.util.concurrent.Executors.newCachedThreadPool;
@@ -71,6 +65,8 @@ public class ConsulRegistry extends FailbackRegistry {
     // default deregister critical server after
     private static final String DEFAULT_DEREGISTER_TIME = "20s";
 
+    private Set<String> serviceIds = new ConcurrentHashSet<String>();
+
     private ConsulClient client;
 
     private ExecutorService notifierExecutor = newCachedThreadPool(
@@ -82,6 +78,19 @@ public class ConsulRegistry extends FailbackRegistry {
         String host = url.getHost();
         int port = url.getPort() != 0 ? url.getPort() : DEFAULT_PORT;
         client = new ConsulClient(host, port);
+
+
+        ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
+
+        heartbeatExecutor.scheduleAtFixedRate(new Runnable() {
+                                                  @Override
+                                                  public void run() {
+                                                      for (String tempService : serviceIds) {
+                                                          client.agentCheckPass(tempService);
+                                                      }
+                                                  }
+                                              }, 2000,
+                2000, TimeUnit.MILLISECONDS);
     }
 
     @Override
@@ -96,6 +105,8 @@ public class ConsulRegistry extends FailbackRegistry {
     @Override
     public void doRegister(URL url) {
         client.agentServiceRegister(buildService(url));
+        serviceIds.add("service:" + buildService(url).getId());
+
     }
 
     @Override
@@ -133,6 +144,10 @@ public class ConsulRegistry extends FailbackRegistry {
         } else {
             String service = url.getServiceKey();
             Response<List<HealthService>> response = getHealthServices(service, -1, buildWatchTimeout(url));
+
+            if (response.getValue() != null && !response.getValue().isEmpty()) {
+                int m = 0;
+            }
             index = response.getConsulIndex();
             urls = convert(response.getValue());
         }
@@ -258,10 +273,13 @@ public class ConsulRegistry extends FailbackRegistry {
 
     private NewService.Check buildCheck(URL url) {
         NewService.Check check = new NewService.Check();
-        check.setTcp(url.getAddress());
-        check.setInterval(url.getParameter(CHECK_INTERVAL, DEFAULT_CHECK_INTERVAL));
-        check.setTimeout(url.getParameter(CHECK_TIMEOUT, DEFAULT_CHECK_TIMEOUT));
-        check.setDeregisterCriticalServiceAfter(url.getParameter(DEREGISTER_AFTER, DEFAULT_DEREGISTER_TIME));
+//        check.setTcp(url.getAddress());
+//        check.setTcp(url.getAddress());
+        check.setTtl(30 + "s");
+        check.setDeregisterCriticalServiceAfter("3m");
+//        check.setInterval(url.getParameter(CHECK_INTERVAL, DEFAULT_CHECK_INTERVAL));
+//        check.setTimeout(url.getParameter(CHECK_TIMEOUT, DEFAULT_CHECK_TIMEOUT));
+//        check.setDeregisterCriticalServiceAfter(url.getParameter(DEREGISTER_AFTER, DEFAULT_DEREGISTER_TIME));
         return check;
     }
 
