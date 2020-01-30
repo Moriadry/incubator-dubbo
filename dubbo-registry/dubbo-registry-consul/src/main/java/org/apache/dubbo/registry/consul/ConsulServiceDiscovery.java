@@ -30,10 +30,8 @@ import org.apache.dubbo.registry.client.event.ServiceInstancesChangedEvent;
 import org.apache.dubbo.registry.client.event.listener.ServiceInstancesChangedListener;
 
 import com.ecwid.consul.v1.ConsulClient;
-import com.ecwid.consul.v1.QueryParams;
 import com.ecwid.consul.v1.Response;
 import com.ecwid.consul.v1.agent.model.NewService;
-import com.ecwid.consul.v1.health.HealthServicesRequest;
 import com.ecwid.consul.v1.health.model.HealthService;
 
 import java.util.ArrayList;
@@ -58,9 +56,7 @@ import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.CHECK_PASS
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_CHECK_PASS_INTERVAL;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_DEREGISTER_TIME;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_PORT;
-import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_WATCH_TIMEOUT;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEREGISTER_AFTER;
-import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.WATCH_TIMEOUT;
 
 /**
  * 2019-07-31
@@ -127,7 +123,7 @@ public class ConsulServiceDiscovery implements ServiceDiscovery, EventListener<S
     public void addServiceInstancesChangedListener(ServiceInstancesChangedListener listener) throws NullPointerException, IllegalArgumentException {
         if (notifier == null) {
             String serviceName = listener.getServiceName();
-            Response<List<HealthService>> response = getHealthServices(serviceName, -1, buildWatchTimeout());
+            Response<List<HealthService>> response = ConsulHelper.getHealthServices(serviceName, -1, ConsulHelper.buildWatchTimeout(url), tag, client);
             Long consulIndex = response.getConsulIndex();
             notifier = new ConsulNotifier(serviceName, consulIndex);
         }
@@ -142,7 +138,7 @@ public class ConsulServiceDiscovery implements ServiceDiscovery, EventListener<S
 
     @Override
     public void unregister(ServiceInstance serviceInstance) throws RuntimeException {
-        String id = buildId(serviceInstance);
+        String id = ConsulHelper.buildIdForServiceDiscovery(serviceInstance);
         ttlScheduler.remove(id);
         client.agentServiceDeregister(id);
     }
@@ -154,7 +150,7 @@ public class ConsulServiceDiscovery implements ServiceDiscovery, EventListener<S
 
     @Override
     public List<ServiceInstance> getInstances(String serviceName) throws NullPointerException {
-        Response<List<HealthService>> response = getHealthServices(serviceName, -1, buildWatchTimeout());
+        Response<List<HealthService>> response = ConsulHelper.getHealthServices(serviceName, -1, ConsulHelper.buildWatchTimeout(url), tag, client);
         Long consulIndex = response.getConsulIndex();
         if (notifier == null) {
             notifier = new ConsulNotifier(serviceName, consulIndex);
@@ -175,15 +171,6 @@ public class ConsulServiceDiscovery implements ServiceDiscovery, EventListener<S
                     return instance;
                 })
                 .collect(Collectors.toList());
-    }
-
-    private Response<List<HealthService>> getHealthServices(String service, long index, int watchTimeout) {
-        HealthServicesRequest request = HealthServicesRequest.newBuilder()
-                .setTag(tag)
-                .setQueryParams(new QueryParams(watchTimeout, index))
-                .setPassing(true)
-                .build();
-        return client.getHealthServices(service, request);
     }
 
     private Map<String, String> getMetadata(HealthService.Service service) {
@@ -225,16 +212,12 @@ public class ConsulServiceDiscovery implements ServiceDiscovery, EventListener<S
         NewService service = new NewService();
         service.setAddress(serviceInstance.getHost());
         service.setPort(serviceInstance.getPort());
-        service.setId(buildId(serviceInstance));
+        service.setId(ConsulHelper.buildIdForServiceDiscovery(serviceInstance));
         service.setName(serviceInstance.getServiceName());
         service.setCheck(buildCheck(serviceInstance));
         service.setTags(buildTags(serviceInstance));
 //        service.setMeta(buildMetadata(serviceInstance));
         return service;
-    }
-
-    private String buildId(ServiceInstance serviceInstance) {
-        return Integer.toHexString(serviceInstance.hashCode());
     }
 
     private List<String> buildTags(ServiceInstance serviceInstance) {
@@ -283,10 +266,6 @@ public class ConsulServiceDiscovery implements ServiceDiscovery, EventListener<S
         return check;
     }
 
-    private int buildWatchTimeout() {
-        return url.getParameter(WATCH_TIMEOUT, DEFAULT_WATCH_TIMEOUT) / 1000;
-    }
-
     private class ConsulNotifier implements Runnable {
         private String serviceName;
         private long consulIndex;
@@ -306,7 +285,7 @@ public class ConsulServiceDiscovery implements ServiceDiscovery, EventListener<S
         }
 
         private void processService() {
-            Response<List<HealthService>> response = getHealthServices(serviceName, consulIndex, Integer.MAX_VALUE);
+            Response<List<HealthService>> response = ConsulHelper.getHealthServices(serviceName, consulIndex, Integer.MAX_VALUE, tag, client);
             Long currentIndex = response.getConsulIndex();
             if (currentIndex != null && currentIndex > consulIndex) {
                 consulIndex = currentIndex;

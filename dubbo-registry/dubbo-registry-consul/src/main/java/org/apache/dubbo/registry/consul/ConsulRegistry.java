@@ -33,11 +33,9 @@ import com.ecwid.consul.v1.QueryParams;
 import com.ecwid.consul.v1.Response;
 import com.ecwid.consul.v1.agent.model.NewService;
 import com.ecwid.consul.v1.catalog.CatalogServicesRequest;
-import com.ecwid.consul.v1.health.HealthServicesRequest;
 import com.ecwid.consul.v1.health.model.HealthService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -60,11 +58,9 @@ import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.CHECK_PASS
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_CHECK_PASS_INTERVAL;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_DEREGISTER_TIME;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_PORT;
-import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEFAULT_WATCH_TIMEOUT;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.DEREGISTER_AFTER;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.SERVICE_TAG;
 import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.URL_META_KEY;
-import static org.apache.dubbo.registry.consul.AbstractConsulRegistry.WATCH_TIMEOUT;
 
 /**
  * registry center implementation for consul
@@ -116,7 +112,7 @@ public class ConsulRegistry extends FailbackRegistry {
 
     @Override
     public void doUnregister(URL url) {
-        client.agentServiceDeregister(buildId(url));
+        client.agentServiceDeregister(ConsulHelper.buildIdForRegistry(url));
     }
 
     @Override
@@ -133,13 +129,14 @@ public class ConsulRegistry extends FailbackRegistry {
         Long index;
         List<URL> urls;
         if (ANY_VALUE.equals(url.getServiceInterface())) {
-            Response<Map<String, List<String>>> response = getAllServices(-1, buildWatchTimeout(url));
+            Response<Map<String, List<String>>> response = getAllServices(-1, ConsulHelper.buildWatchTimeout(url));
             index = response.getConsulIndex();
-            List<HealthService> services = getHealthServices(response.getValue());
+            List<HealthService> services = ConsulHelper.getHealthServices(response.getValue(), client);
             urls = convert(services, url);
         } else {
             String service = url.getServiceInterface();
-            Response<List<HealthService>> response = getHealthServices(service, -1, buildWatchTimeout(url));
+            Response<List<HealthService>> response = ConsulHelper.getHealthServices(service, -1, ConsulHelper.buildWatchTimeout(url),
+                    SERVICE_TAG, client);
             index = response.getConsulIndex();
             urls = convert(response.getValue(), url);
         }
@@ -171,7 +168,8 @@ public class ConsulRegistry extends FailbackRegistry {
         }
         try {
             String service = url.getServiceKey();
-            Response<List<HealthService>> result = getHealthServices(service, -1, buildWatchTimeout(url));
+            Response<List<HealthService>> result = ConsulHelper.getHealthServices(service, -1,
+                    ConsulHelper.buildWatchTimeout(url), SERVICE_TAG, client);
             if (result == null || result.getValue() == null || result.getValue().isEmpty()) {
                 return new ArrayList<>();
             } else {
@@ -196,7 +194,7 @@ public class ConsulRegistry extends FailbackRegistry {
 
     private void checkPass() {
         for (URL url : getRegistered()) {
-            String checkId = buildId(url);
+            String checkId = ConsulHelper.buildIdForRegistry(url);
             try {
                 client.agentCheckPass("service:" + checkId);
                 if (logger.isDebugEnabled()) {
@@ -208,30 +206,12 @@ public class ConsulRegistry extends FailbackRegistry {
         }
     }
 
-    private Response<List<HealthService>> getHealthServices(String service, long index, int watchTimeout) {
-        HealthServicesRequest request = HealthServicesRequest.newBuilder()
-                .setTag(SERVICE_TAG)
-                .setQueryParams(new QueryParams(watchTimeout, index))
-                .setPassing(true)
-                .build();
-        return client.getHealthServices(service, request);
-    }
-
     private Response<Map<String, List<String>>> getAllServices(long index, int watchTimeout) {
         CatalogServicesRequest request = CatalogServicesRequest.newBuilder()
                 .setQueryParams(new QueryParams(watchTimeout, index))
                 .build();
         return client.getCatalogServices(request);
     }
-
-    private List<HealthService> getHealthServices(Map<String, List<String>> services) {
-        return services.entrySet().stream()
-                .filter(s -> s.getValue().contains(SERVICE_TAG))
-                .map(s -> getHealthServices(s.getKey(), -1, -1).getValue())
-                .flatMap(Collection::stream)
-                .collect(Collectors.toList());
-    }
-
 
     private boolean isConsumerSide(URL url) {
         return url.getProtocol().equals(CONSUMER_PROTOCOL);
@@ -271,7 +251,7 @@ public class ConsulRegistry extends FailbackRegistry {
         NewService service = new NewService();
         service.setAddress(url.getHost());
         service.setPort(url.getPort());
-        service.setId(buildId(url));
+        service.setId(ConsulHelper.buildIdForRegistry(url));
         service.setName(url.getServiceInterface());
         service.setCheck(buildCheck(url));
         service.setTags(buildTags(url));
@@ -288,20 +268,11 @@ public class ConsulRegistry extends FailbackRegistry {
         return tags;
     }
 
-    private String buildId(URL url) {
-        // let's simply use url's hashcode to generate unique service id for now
-        return Integer.toHexString(url.hashCode());
-    }
-
     private NewService.Check buildCheck(URL url) {
         NewService.Check check = new NewService.Check();
         check.setTtl((checkPassInterval / 1000) + "s");
         check.setDeregisterCriticalServiceAfter(url.getParameter(DEREGISTER_AFTER, DEFAULT_DEREGISTER_TIME));
         return check;
-    }
-
-    private int buildWatchTimeout(URL url) {
-        return url.getParameter(WATCH_TIMEOUT, DEFAULT_WATCH_TIMEOUT) / 1000;
     }
 
     private class ConsulNotifier implements Runnable {
@@ -328,7 +299,8 @@ public class ConsulRegistry extends FailbackRegistry {
 
         private void processService() {
             String service = url.getServiceKey();
-            Response<List<HealthService>> response = getHealthServices(service, consulIndex, buildWatchTimeout(url));
+            Response<List<HealthService>> response = ConsulHelper.getHealthServices(service,
+                    consulIndex, ConsulHelper.buildWatchTimeout(url), SERVICE_TAG, client);
             Long currentIndex = response.getConsulIndex();
             if (currentIndex != null && currentIndex > consulIndex) {
                 consulIndex = currentIndex;
@@ -341,11 +313,11 @@ public class ConsulRegistry extends FailbackRegistry {
         }
 
         private void processServices() {
-            Response<Map<String, List<String>>> response = getAllServices(consulIndex, buildWatchTimeout(url));
+            Response<Map<String, List<String>>> response = getAllServices(consulIndex, ConsulHelper.buildWatchTimeout(url));
             Long currentIndex = response.getConsulIndex();
             if (currentIndex != null && currentIndex > consulIndex) {
                 consulIndex = currentIndex;
-                List<HealthService> services = getHealthServices(response.getValue());
+                List<HealthService> services = ConsulHelper.getHealthServices(response.getValue(), client);
                 List<URL> urls = convert(services, url);
                 for (NotifyListener listener : getSubscribed().get(url)) {
                     doNotify(url, listener, urls);
